@@ -1,0 +1,262 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  phone       String?  @unique
+  email       String?  @unique
+  password    String
+  name        String?  // Sera déprécié au profit de firstName/lastName
+  firstName   String?
+  lastName    String?
+  age         Int?
+  gender      Gender?
+  avatar      String?
+  verified    Boolean  @default(false)  // Vérification par admin
+  isAdmin     Boolean  @default(false)  // Statut administrateur
+  verificationStatus VerificationStatus @default(PENDING)
+
+  // Géolocalisation
+  address     String?  // Adresse complète
+  city        String?  // Ville
+  country     String?  @default("Sénégal")  // Pays
+  latitude    Float?   // Latitude pour géolocalisation
+  longitude   Float?   // Longitude pour géolocalisation
+
+  // Score system
+  score       Float    @default(50.0)  // Score initial de 50/100
+  totalRating Float    @default(0.0)   // Moyenne des notes reçues
+  ratingCount Int      @default(0)     // Nombre d'avis reçus
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  listings    Listing[]
+  reviews     Review[] @relation("ReviewAuthor")
+  receivedReviews Review[] @relation("ReviewTarget")
+  sentMessages Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+  conversations Conversation[]
+  verificationRequests VerificationRequest[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  createdAt   DateTime @default(now())
+
+  // Relations
+  listings    Listing[]
+
+  @@map("categories")
+}
+
+model Listing {
+  id          String     @id @default(cuid())
+  title       String
+  description String
+  price       Float?
+  currency    Currency   @default(CFA)
+  type        ListingType @default(SERVICE)
+  status      ListingStatus @default(ACTIVE)
+  images      String[]   @default([])
+  tags        String[]   @default([])
+  location    String?    // Adresse textuelle
+  contact     String?
+
+  // Géolocalisation précise
+  address     String?    // Adresse complète du service/produit
+  city        String?    // Ville où se trouve le service/produit
+  latitude    Float?     // Latitude pour géolocalisation
+  longitude   Float?     // Longitude pour géolocalisation
+
+  // Relations
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category   @relation(fields: [categoryId], references: [id])
+  reviews     Review[]
+  conversations Conversation[]
+
+  // Timestamps
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Search indexing
+  @@index([status, type])
+  @@index([categoryId])
+  @@index([userId])
+  @@index([currency])
+  @@index([city])
+  @@index([latitude, longitude])  // Index composite pour géolocalisation
+  @@map("listings")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 stars
+  comment   String?
+
+  // Relations
+  authorId  String
+  author    User     @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId  String   // User being reviewed
+  target    User     @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  // Prevent duplicate reviews
+  @@unique([authorId, listingId])
+  @@map("reviews")
+}
+
+enum ListingType {
+  PRODUCT
+  SERVICE
+}
+
+enum ListingStatus {
+  ACTIVE
+  INACTIVE
+  SOLD
+  EXPIRED
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+
+  // Relations
+  userId    String   // User qui a initié la conversation
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listingId String   // Annonce concernée
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  // Metadata
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  // Index for performance
+  @@index([userId])
+  @@index([listingId])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id      String @id @default(cuid())
+  content String
+  type    MessageType @default(TEXT)
+
+  // Relations
+  senderId String
+  sender   User   @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User   @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Status
+  read      Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+enum Currency {
+  CFA    // Franc CFA (défaut)
+  EUR    // Euro
+  USD    // Dollar US
+  XOF    // Franc CFA BCEAO
+  XAF    // Franc CFA BEAC
+  MAD    // Dirham marocain
+  TND    // Dinar tunisien
+  DZD    // Dinar algérien
+}
+
+enum Gender {
+  MALE     // Homme
+  FEMALE   // Femme
+  OTHER    // Autre
+}
+
+enum VerificationStatus {
+  PENDING    // En attente de vérification
+  APPROVED   // Approuvé par admin
+  REJECTED   // Rejeté par admin
+  SUBMITTED  // Document soumis en attente de révision
+}
+
+enum DocumentType {
+  NATIONAL_ID      // Carte d'identité nationale
+  PASSPORT         // Passeport
+  DRIVING_LICENSE  // Permis de conduire
+  OTHER           // Autre document officiel
+}
+
+model VerificationRequest {
+  id        String   @id @default(cuid())
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Document information
+  documentType DocumentType
+  documentUrl  String     // URL du document uploadé
+  documentName String     // Nom original du fichier
+
+  // Request status
+  status       VerificationStatus @default(SUBMITTED)
+  submittedAt  DateTime          @default(now())
+  reviewedAt   DateTime?
+
+  // Admin review
+  reviewedById String?   // ID de l'admin qui a reviewé
+  adminNotes   String?   // Commentaires de l'admin
+
+  // Metadata
+  ipAddress    String?   // IP d'où le document a été uploadé
+  userAgent    String?   // User agent du navigateur
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([submittedAt])
+  @@map("verification_requests")
+}
