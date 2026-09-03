@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm add:*)",
+      "Bash(pnpm dlx shadcn@latest add:*)",
+      "WebSearch",
+      "Bash(openssl rand:*)",
+      "Bash(pnpm prisma generate:*)",
+      "Bash(pnpm prisma:*)",
+      "Bash(pnpm db:seed:*)",
+      "Bash(curl:*)",
+      "Bash(npx tsx:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "Bash(pnpm dev:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(pnpm remove:*)",
+      "Bash(pnpm build:*)",
+      "Read(//Users/adelboudalha/**)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(brew install:*)",
+      "Bash(gh auth login:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
